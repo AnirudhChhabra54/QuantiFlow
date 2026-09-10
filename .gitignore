@@ -1,0 +1,29 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# Environment files with secrets (keep .env.example tracked)
+.env
+!.env.example
+
+# Airflow runtime logs & sqlite (if any)
+logs/
+airflow.cfg
+airflow.db
+webserver_config.py
+
+# Pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# OS / Editor files
+.DS_Store
+.vscode/
+.idea/
