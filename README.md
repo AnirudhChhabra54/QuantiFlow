@@ -18,6 +18,42 @@ I built **QuantiFlow** to demonstrate how financial data pipelines should actual
 
 ---
 
+## Visual Verification & Evaluation Proofs
+
+### 1. Airflow Orchestration & Pipeline Run Status
+The 3-stage pipeline (`fetch_and_validate` $\rightarrow$ `load_to_postgres` $\rightarrow$ `verify_load`) running with status `success`:
+
+![Airflow DAG Grid View](docs/images/airflow_dag_grid.png)
+
+*Airflow DAG Grid View showing successful scheduled and manual pipeline runs with individual task execution states.*
+
+![Airflow DAG Graph View](docs/images/airflow_dag_graph.png)
+
+*Dependency graph view demonstrating the clean, decoupled 3-task workflow.*
+
+---
+
+### 2. Live Docker Stack Health
+All three core services running inside Docker's dedicated bridge network (`pipeline_net`):
+
+![Docker Container Health](docs/images/terminal_docker_status.png)
+
+---
+
+### 3. PostgreSQL Ingestion & The Idempotency Proof
+Proof of data persistence and idempotent upserting. When the DAG was re-executed, exactly **0 rows were inserted and 66 rows were updated in place**, leaving the table with zero duplicate records:
+
+![PostgreSQL Idempotency Proof](docs/images/postgres_idempotency_proof.png)
+
+---
+
+### 4. Automated Pytest Test Suite
+19 comprehensive unit and integration tests asserting schema constraints, non-imputation rules, 429 rate limit recovery, and database rollback handling:
+
+![Pytest Test Results](docs/images/pytest_test_results.png)
+
+---
+
 ## System Architecture
 
 ```
@@ -123,7 +159,15 @@ QuantiFlow/
 ├── requirements.txt                # Python package dependencies
 ├── pytest.ini                      # Pytest configuration
 ├── README.md                       # Main documentation (you are here)
-├── PROJECT_DOCUMENTATION.md        # Deep architectural guide & interview defense
+│
+├── docs/
+│   └── images/                     # Visual proofs, UI screenshots & test captures
+│       ├── airflow_dags_overview.png
+│       ├── airflow_dag_grid.png
+│       ├── airflow_dag_graph.png
+│       ├── terminal_docker_status.png
+│       ├── postgres_idempotency_proof.png
+│       └── pytest_test_results.png
 │
 ├── sql/
 │   └── init.sql                    # Initial PostgreSQL DDL, constraints, and indices
@@ -204,15 +248,6 @@ docker compose exec postgres psql -U airflow -d stock_db -c \
   "SELECT symbol, timestamp, open_price, high_price, low_price, close_price, volume FROM stock_quotes ORDER BY timestamp DESC LIMIT 6;"
 ```
 
-Sample output:
-```text
- symbol |       timestamp        | open_price | high_price | low_price | close_price |  volume  
---------+------------------------+------------+------------+-----------+-------------+----------
- GOOGL  | 2026-09-10 13:30:00+00 |   328.2300 |   333.2300 |  327.7400 |    332.6000 | 23508500
- MSFT   | 2026-09-10 13:30:00+00 |   488.3200 |   494.5200 |  486.0000 |    492.4400 | 16018200
- AAPL   | 2026-09-10 13:30:00+00 |   316.6700 |   326.7400 |  316.5100 |    326.5700 | 69925100
-```
-
 ### The Idempotency Test
 Trigger the DAG twice in a row:
 ```bash
@@ -226,15 +261,7 @@ docker compose exec postgres psql -U airflow -d stock_db -c \
   "SELECT id, run_id, status, records_fetched, records_inserted, records_updated, records_rejected FROM pipeline_audit_logs ORDER BY id DESC LIMIT 2;"
 ```
 
-```text
- id |                run_id                | status  | records_fetched | records_inserted | records_updated | records_rejected 
-----+--------------------------------------+---------+-----------------+------------------+-----------------+------------------
-  2 | manual__2026-09-11T12:35:02+00:00    | SUCCESS |              66 |                0 |              66 |                0
-  1 | scheduled__2026-09-10T00:00:00+00:00 | SUCCESS |              66 |               66 |               0 |                0
-```
-- **First Run**: 66 bars fetched $\rightarrow$ **66 inserted**, 0 updated.
-- **Second Run**: 66 bars fetched $\rightarrow$ **0 inserted, 66 updated in place**.
-- **Total table rows**: Exactly **66**. Zero duplicate entries created.
+Notice that on the second run, **`records_inserted` is 0 and `records_updated` matches the batch size**, leaving the total table row count identical with zero duplicates.
 
 ---
 
@@ -243,10 +270,6 @@ docker compose exec postgres psql -U airflow -d stock_db -c \
 All 19 automated unit tests can be run locally using `pytest`:
 ```bash
 pytest tests/ -v
-```
-
-```text
-============================== 19 passed in 0.07s ==============================
 ```
 
 You can also run the full end-to-end simulation directly without Docker:
