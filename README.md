@@ -1,6 +1,6 @@
 # QuantiFlow 📈
 ### Automated Financial Market Ingestion & Validation Engine
-**Author:** Anirudh Chhabra ([GitHub](https://github.com/AnirudhChhabra54) | [Email](mailto:anirudhchhabra32@gmail.com))
+**Author:** Anirudh Chhabra ([GitHub](https://github.com/AnirudhChhabra54) | [Email](mailto:anirudhchhabra02@gmail.com))
 
 ---
 
@@ -260,4 +260,4 @@ python3 scripts/run_pipeline_local.py
 
 Built with focus on precision and production engineering standards by **Anirudh Chhabra**.
 - **GitHub**: [@AnirudhChhabra54](https://github.com/AnirudhChhabra54)
-- **Email**: [anirudhchhabra32@gmail.com](mailto:anirudhchhabra32@gmail.com)
+- **Email**: [anirudhchhabra02@gmail.com](mailto:anirudhchhabra02@gmail.com)
