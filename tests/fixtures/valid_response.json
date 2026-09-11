@@ -1,0 +1,37 @@
+{
+  "chart": {
+    "result": [
+      {
+        "meta": {
+          "currency": "USD",
+          "symbol": "AAPL",
+          "exchangeName": "NMS",
+          "instrumentType": "EQUITY",
+          "firstTradeDate": 345738600,
+          "regularMarketTime": 1726084801,
+          "gmtoffset": -14400,
+          "timezone": "EDT",
+          "exchangeTimezoneName": "America/New_York",
+          "regularMarketPrice": 222.66
+        },
+        "timestamp": [
+          1725975000,
+          1726061400,
+          1726147800
+        ],
+        "indicators": {
+          "quote": [
+            {
+              "open": [220.50, 221.00, 222.10],
+              "high": [223.00, 223.50, 224.00],
+              "low": [219.80, 220.20, 221.50],
+              "close": [222.66, 222.90, 223.50],
+              "volume": [45000000, 48000000, 51000000]
+            }
+          ]
+        }
+      }
+    ],
+    "error": null
+  }
+}
