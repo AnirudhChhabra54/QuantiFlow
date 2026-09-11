@@ -1,0 +1,143 @@
+networks:
+  pipeline_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+
+services:
+  # ============================================================================
+  # 1. PostgreSQL Service
+  # Single container hosting both airflow_db (metadata) and stock_db (app data)
+  # ============================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: stock_pipeline_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-airflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-airflow}
+      POSTGRES_DB: ${AIRFLOW_DB_NAME:-airflow_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-airflow}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - pipeline_net
+
+  # ============================================================================
+  # 2. Airflow Database Initialization (One-Shot Container)
+  # Runs database migrations and creates the admin user before services start
+  # ============================================================================
+  airflow-init:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: stock-data-pipeline-airflow:latest
+    container_name: stock_pipeline_airflow_init
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-airflow}:${POSTGRES_PASSWORD:-airflow}@postgres:5432/${AIRFLOW_DB_NAME:-airflow_db}
+      _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-admin}
+      _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-admin}
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./src:/opt/airflow/src
+      - ./logs:/opt/airflow/logs
+    networks:
+      - pipeline_net
+    entrypoint: >
+      bash -c "
+      echo 'Waiting for postgres...' &&
+      airflow db migrate &&
+      airflow users create \
+        --username ${_AIRFLOW_WWW_USER_USERNAME:-admin} \
+        --password ${_AIRFLOW_WWW_USER_PASSWORD:-admin} \
+        --firstname Admin \
+        --lastname User \
+        --role Admin \
+        --email admin@example.com || true
+      "
+
+  # ============================================================================
+  # 3. Airflow Webserver Service
+  # Web dashboard accessible at http://localhost:8080
+  # ============================================================================
+  airflow-webserver:
+    image: stock-data-pipeline-airflow:latest
+    container_name: stock_pipeline_airflow_webserver
+    restart: always
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-airflow}:${POSTGRES_PASSWORD:-airflow}@postgres:5432/${AIRFLOW_DB_NAME:-airflow_db}
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "false"
+      PYTHONPATH: /opt/airflow
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-airflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-airflow}
+      STOCK_DB_NAME: ${STOCK_DB_NAME:-stock_db}
+      STOCK_TICKERS_RAW: ${STOCK_TICKERS:-AAPL,MSFT,GOOGL}
+      FETCH_INTERVAL: ${FETCH_INTERVAL:-daily}
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./src:/opt/airflow/src
+      - ./logs:/opt/airflow/logs
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+    networks:
+      - pipeline_net
+    command: webserver
+
+  # ============================================================================
+  # 4. Airflow Scheduler Service
+  # Monitors DAGs and schedules task runs
+  # ============================================================================
+  airflow-scheduler:
+    image: stock-data-pipeline-airflow:latest
+    container_name: stock_pipeline_airflow_scheduler
+    restart: always
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-airflow}:${POSTGRES_PASSWORD:-airflow}@postgres:5432/${AIRFLOW_DB_NAME:-airflow_db}
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      PYTHONPATH: /opt/airflow
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-airflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-airflow}
+      STOCK_DB_NAME: ${STOCK_DB_NAME:-stock_db}
+      STOCK_TICKERS_RAW: ${STOCK_TICKERS:-AAPL,MSFT,GOOGL}
+      FETCH_INTERVAL: ${FETCH_INTERVAL:-daily}
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./src:/opt/airflow/src
+      - ./logs:/opt/airflow/logs
+    networks:
+      - pipeline_net
+    command: scheduler
